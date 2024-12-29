@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  schema   = "operations"
 }
 
 datasource db {
@@ -7,5 +8,35 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// enum Gender {
+//   male
+//   female
+//   others
+// }
 
+// enum UserRole {
+//   student
+//   admin
+//   teacher
+//   accountant
+//   librarian
+//   parent
+// }
 
+model Classes {
+  id            String         @id @default(cuid())
+  label         String         @unique
+  section       String[]       @default(["a"])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime
+  schoolClasses School_Class[]
+}
+
+model School_Class {
+  id        String   @id @default(cuid())
+  class_id  String
+  school_id String
+  classes   Classes  @relation(fields: [class_id], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
