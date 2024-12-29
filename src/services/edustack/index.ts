@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosResponse } from "axios";
 import { getEnvironment } from "../../functions/environment";
-import { edustackAPIRequestType } from "../../types";
+import { edustackAPIRequestType } from "../../types/request";
 
 const environment = getEnvironment();
 export const getAuthURL = () => {
