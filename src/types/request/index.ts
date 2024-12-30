@@ -11,7 +11,7 @@ export interface edustackAPIResponseType {
 }
 
 export interface classSchoolRequest {
-  label: String;
-  section?: String[];
-  school_id: String[];
+  label: string;
+  section?: string[];
+  school_id: string[];
 }
