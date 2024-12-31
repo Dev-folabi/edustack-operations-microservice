@@ -1,5 +1,9 @@
 import { NextFunction, Request, Response } from "express";
 import { getTokenFromHeader } from "../functions/token";
+import jwt from "jsonwebtoken";
+import { handleError } from "../error/errorHandler";
+
+const JTWSign = `${process.env.JWT_SECRET_KEY}`;
 
 export const verifyToken = async (
   req: Request,
@@ -7,23 +11,17 @@ export const verifyToken = async (
   next: NextFunction
 ) => {
   try {
-    const authHeader = req.headers["authorization"];
-    if (!authHeader) {
-      return handleError(res, 400, "Authorization header is missing");
-    }
-
     const token = getTokenFromHeader(req);
-    if (!token) {
-      return handleError(res, 400, "Invalid token provided");
-    }
 
-    next();
+    jwt.verify(token, JTWSign, (err) => {
+      if (err) {
+        return handleError(res, "Invalid token provided, pls login", 400);
+      } else {
+        next();
+      }
+    });
   } catch (error: any) {
     console.error("Error in verifyToken:", error.message);
     next(error);
   }
-};
-
-const handleError = (res: Response, status: number, message: string) => {
-  res.status(status).json({ success: false, message });
 };

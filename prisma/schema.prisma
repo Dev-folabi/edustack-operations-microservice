@@ -29,7 +29,7 @@ model Classes {
   section       String[]       @default(["a"])
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-  schoolClasses School_Class[]
+  school_class School_Class[]
 }
 
 model School_Class {
