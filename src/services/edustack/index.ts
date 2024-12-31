@@ -64,4 +64,8 @@ class edustackConnect {
   }
 }
 
-export default edustackConnect
+// Create instance of EduStack service
+const edustackInstance = new edustackConnect();
+
+export const makeAuthRequest = edustackInstance.makeAuthRequest;
+
