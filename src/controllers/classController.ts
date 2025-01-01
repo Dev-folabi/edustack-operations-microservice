@@ -1,10 +1,11 @@
 import { NextFunction, Request, Response } from "express";
 import { classSchoolRequest } from "../types/request";
-import { makeAuthRequest } from "../services/edustack";
+import { edustackInstance } from "../services/edustack";
 import { getTokenFromHeader } from "../functions/token";
 import { handleError } from "../error/errorHandler";
 import prisma from "../prisma";
 
+// Create Class
 export const createClass = async (
   req: Request<{}, {}, classSchoolRequest>,
   res: Response,
@@ -14,38 +15,49 @@ export const createClass = async (
     const token = getTokenFromHeader(req);
     const { label, section, school_id } = req.body;
 
+    // Check if class already exists
+    const existingClass = await prisma.classes.findFirst({
+      where: { label },
+    });
+    if (existingClass) {
+      return handleError(res, "Class already exists", 400);
+    }
+
     // Validate and deduplicate school IDs
     const uniqueSchoolIds = [...new Set(school_id)];
     const invalidSchoolIds: string[] = [];
+    const validSchoolData: { id: string; name: string }[] = [];
 
-    // Validate school existence
+    // Validate school existence and fetch school names
     for (const sch of uniqueSchoolIds) {
       try {
-        const school = await makeAuthRequest({
-          endpoint: `school/${sch}`,
+        const school = await edustackInstance.makeAuthRequest({
+          endpoint: `school`,
           method: "GET",
           token,
         });
 
-        // Check if school exists in response
-        if (!school.data || !school.data.some((s: string) => s === sch)) {
+        // Access the array of schools in the response
+        const schoolArray = school.data?.data;
+
+        if (!Array.isArray(schoolArray)) {
+          return handleError(res, `An error occurred`, 500);
+        }
+
+        // Check if school exists in the response array and get its name
+        const foundSchool = schoolArray.find((s: { id: string }) => s.id === sch);
+        if (foundSchool) {
+          validSchoolData.push({ id: foundSchool.id, name: foundSchool.name });
+        } else {
           invalidSchoolIds.push(sch);
         }
       } catch (error) {
-        return handleError(
-          res,
-          `Error fetching school details for ID: ${sch}`,
-          500
-        );
+        return handleError(res, `Error fetching school details`, 500);
       }
     }
 
     if (invalidSchoolIds.length > 0) {
-      return handleError(
-        res,
-        `Invalid school IDs: ${invalidSchoolIds.join(", ")}`,
-        400
-      );
+      return handleError(res, `Schools doesn't exsit`, 400);
     }
 
     // Create class and associate it with schools
@@ -55,10 +67,11 @@ export const createClass = async (
         data: { label, section },
       });
 
-      // Create associations with schools
-      const schoolClassData = uniqueSchoolIds.map((id) => ({
+      // Create associations with schools, including school names
+      const schoolClassData = validSchoolData.map((school) => ({
         class_id: createdClass.id,
-        school_id: id,
+        school_id: school.id,
+        school_name: school.name,
       }));
 
       await tx.school_Class.createMany({
@@ -79,6 +92,7 @@ export const createClass = async (
   }
 };
 
+
 // Get All Classes
 export const getAllClasses = async (
   req: Request,
@@ -86,7 +100,11 @@ export const getAllClasses = async (
   next: NextFunction
 ) => {
   try {
-    const classes = await prisma.classes.findMany();
+    const classes = await prisma.classes.findMany(
+      {
+        include:{school_class: true}
+      }
+    );
     res.status(200).json({
       success: true,
       message: "All classes retrieved successfully",
@@ -108,6 +126,7 @@ export const getClassById = async (
 
     const foundClass = await prisma.classes.findUnique({
       where: { id: classId },
+      include:{school_class: true}
     });
 
     if (!foundClass) {
@@ -144,23 +163,34 @@ export const updateClass = async (
       return handleError(res, "Class not found", 404);
     }
 
-    const existingSchoolIds = existingClass.school_class.map(
-      (sc) => sc.school_id
-    );
+    const existingSchoolIds = existingClass.school_class.map((sc) => sc.school_id);
     const uniqueSchoolIds = [...new Set(school_id ?? [])];
 
-    // Validate the provided school IDs
+    // Validate the provided school IDs and fetch their names
     const token = getTokenFromHeader(req);
     const invalidSchoolIds: string[] = [];
+    const validSchoolData: { id: string; name: string }[] = [];
+
     for (const sch of uniqueSchoolIds) {
       try {
-        const school = await makeAuthRequest({
-          endpoint: `school/${sch}`,
+        const school = await edustackInstance.makeAuthRequest({
+          endpoint: `school`,
           method: "GET",
           token,
         });
 
-        if (!school.data || !school.data.some((s: string) => s === sch)) {
+        // Access the array of schools in the response
+        const schoolArray = school.data?.data;
+
+        if (!Array.isArray(schoolArray)) {
+          return handleError(res, `An error occurred`, 500);
+        }
+
+        // Check if school exists in the response array and get its name
+        const foundSchool = schoolArray.find((s: { id: string }) => s.id === sch);
+        if (foundSchool) {
+          validSchoolData.push({ id: foundSchool.id, name: foundSchool.name });
+        } else {
           invalidSchoolIds.push(sch);
         }
       } catch (error) {
@@ -175,14 +205,14 @@ export const updateClass = async (
     if (invalidSchoolIds.length > 0) {
       return handleError(
         res,
-        `Invalid school IDs: ${invalidSchoolIds.join(", ")}`,
+        `Schools doesn't exist`,
         400
       );
     }
 
     // Determine schools to add and remove
-    const schoolsToAdd = uniqueSchoolIds.filter(
-      (id) => !existingSchoolIds.includes(id)
+    const schoolsToAdd = validSchoolData.filter(
+      (school) => !existingSchoolIds.includes(school.id)
     );
     const schoolsToRemove = existingSchoolIds.filter(
       (id) => !uniqueSchoolIds.includes(id)
@@ -202,9 +232,10 @@ export const updateClass = async (
       // Add new school associations
       if (schoolsToAdd.length > 0) {
         await tx.school_Class.createMany({
-          data: schoolsToAdd.map((schoolId) => ({
+          data: schoolsToAdd.map((school) => ({
             class_id: classId,
-            school_id: schoolId,
+            school_id: school.id,
+            school_name: school.name, // Include the school name
           })),
         });
       }

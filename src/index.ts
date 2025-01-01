@@ -4,7 +4,9 @@ import morgan from "morgan";
 import api from "./routes/api";
 import prisma from "./prisma";
 import { errorHandler } from "./error/errorHandler";
+import dotenv from "dotenv";
 
+dotenv.config();
 const app = express();
 
 const port = process.env.PORT || 6000;
