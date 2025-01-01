@@ -24,19 +24,20 @@ datasource db {
 // }
 
 model Classes {
-  id            String         @id @default(cuid())
-  label         String         @unique
-  section       String[]       @default(["a"])
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id           String         @id @default(cuid())
+  label        String         @unique
+  section      String[]       @default(["a"])
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   school_class School_Class[]
 }
 
 model School_Class {
-  id        String   @id @default(cuid())
-  class_id  String
-  school_id String
-  classes   Classes  @relation(fields: [class_id], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  class_id    String
+  school_id   String
+  school_name String
+  classes     Classes  @relation(fields: [class_id], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

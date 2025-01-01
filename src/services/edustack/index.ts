@@ -1,24 +1,34 @@
 import axios, { AxiosInstance, AxiosResponse } from "axios";
 import { getEnvironment } from "../../functions/environment";
 import { edustackAPIRequestType } from "../../types/request";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const environment = getEnvironment();
+
 export const getAuthURL = () => {
   switch (environment) {
     case "local":
-      return process.env.DEV_AUTH_URI;
-      break;
+      return (
+        process.env.DEV_AUTH_URI || throwError("DEV_AUTH_URI is not defined")
+      );
     case "staging":
-      return process.env.STAGING_AUTH_URI;
-      break;
+      return (
+        process.env.STAGING_AUTH_URI ||
+        throwError("STAGING_AUTH_URI is not defined")
+      );
     case "production":
-      return process.env.LIVE_AUTH_URI;
-      break;
-
+      return (
+        process.env.LIVE_AUTH_URI || throwError("LIVE_AUTH_URI is not defined")
+      );
     default:
-      return "";
-      break;
+      throwError("Environment is not properly set");
   }
+};
+
+const throwError = (message: string): never => {
+  throw new Error(message);
 };
 
 class edustackConnect {
@@ -36,36 +46,31 @@ class edustackConnect {
     token,
     data,
   }: edustackAPIRequestType): Promise<AxiosResponse> {
-    let response: AxiosResponse;
+    try {
+      const headers = {
+        Authorization: `Bearer ${token || ""}`,
+        "x-header-secure-key":
+          process.env.EDUSTACK_SECURE_HEADER_KEY || "default-secure-key",
+      };
 
-    const headers = {
-      Authorization: `Bearer ${token || ""}`,
-      "x-header-secure-key": process.env.EDUSTACK_SECURE_HEADER_KEY,
-    };
-
-    switch (method.toLowerCase()) {
-      case "get":
-        response = await this.authInstance.get(endpoint, { headers });
-        break;
-      case "post":
-        response = await this.authInstance.post(endpoint, data, { headers });
-        break;
-      case "put":
-        response = await this.authInstance.put(endpoint, data, { headers });
-        break;
-      case "delete":
-        response = await this.authInstance.delete(endpoint, { headers });
-        break;
-      default:
-        throw new Error(`Unsupported method ${method}`);
+      switch (method.toLowerCase()) {
+        case "get":
+          return await this.authInstance.get(endpoint, { headers });
+        case "post":
+          return await this.authInstance.post(endpoint, data, { headers });
+        case "put":
+          return await this.authInstance.put(endpoint, data, { headers });
+        case "delete":
+          return await this.authInstance.delete(endpoint, { headers });
+        default:
+          throw new Error(`Unsupported method: ${method}`);
+      }
+    } catch (error: any) {
+      const message =
+        error.response?.data?.message || error.message || "Request failed";
+      throw new Error(`Error in makeAuthRequest: ${message}`);
     }
-
-    return response;
   }
 }
 
-// Create instance of EduStack service
-const edustackInstance = new edustackConnect();
-
-export const makeAuthRequest = edustackInstance.makeAuthRequest;
-
+export const edustackInstance = new edustackConnect();
